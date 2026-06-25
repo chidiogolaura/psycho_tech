@@ -8,9 +8,10 @@ function Assessment() {
   const navigate = useNavigate()
   
   // ========== STATE VARIABLES ==========
-  const [currentStep, setCurrentStep] = useState(1) // 1-6
+  const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [apiAvailable, setApiAvailable] = useState(true)
   
   // ========== STEP 1: DEMOGRAPHICS ==========
   const [age, setAge] = useState('')
@@ -21,6 +22,7 @@ function Assessment() {
   const [cgpa, setCgpa] = useState('')
   const [studyHours, setStudyHours] = useState('')
   const [academicStress, setAcademicStress] = useState('')
+  const [academicStanding, setAcademicStanding] = useState('')
   
   // ========== STEP 3: LIFESTYLE FACTORS ==========
   const [sleepDuration, setSleepDuration] = useState('')
@@ -50,7 +52,7 @@ function Assessment() {
     "Feeling tired or having little energy?",
     "Poor appetite or overeating?",
     "Feeling bad about yourself — or that you are a failure or have let yourself or your family down?",
-    "Trouble concentrating on things, such as reading the newspaper or watching television?",
+    "Trouble concentrating on things, such as reading or watching television?",
     "Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual?",
     "Thoughts that you would be better off dead, or of hurting yourself?"
   ]
@@ -87,18 +89,43 @@ function Assessment() {
   const supportOptions = [
     { value: "Low", label: "Low - I have few people to turn to" },
     { value: "Moderate", label: "Moderate - I have some support" },
-    { value: "High", label: "High - I have strong support system" }
+    { value: "High", label: "High - I have a strong support system" }
+  ]
+  
+  const standingOptions = [
+    { value: "Excellent", label: "Excellent (First Class/Distinction/70%+)" },
+    { value: "Good", label: "Good (Second Class Upper/60-69%)" },
+    { value: "Average", label: "Average (Second Class Lower/50-59%)" },
+    { value: "Not Applicable", label: "My program doesn't use this system" }
   ]
 
-  // Check if user is logged in
+  // Check if user is logged in and API is available
   useEffect(() => {
     const currentUser = auth.currentUser
     if (!currentUser) {
       navigate('/login')
     }
+    
+    // Check if API is available
+    const checkApi = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/health')
+        if (response.ok) {
+          setApiAvailable(true)
+          console.log('✅ API is available')
+        } else {
+          setApiAvailable(false)
+          console.warn('⚠️ API not available, using fallback')
+        }
+      } catch (error) {
+        setApiAvailable(false)
+        console.warn('⚠️ API not available, using fallback')
+      }
+    }
+    checkApi()
   }, [navigate])
 
-  // Calculate scores
+  // Calculate scores (for display and fallback)
   const calculatePhq9Score = () => {
     let total = 0
     for (let key in phq9Answers) {
@@ -119,13 +146,45 @@ function Assessment() {
     return total
   }
   
+  // Fallback risk calculation (if API is down)
+  const getFallbackRiskLevel = (phq9, gad7) => {
+    if (phq9 >= 10 || gad7 >= 10) return 'High Risk'
+    if (phq9 >= 5 || gad7 >= 5) return 'Moderate Risk'
+    return 'Low Risk'
+  }
+  
+  // Call ML API for prediction
+  const getPredictionFromAPI = async (assessmentData) => {
+    try {
+      const response = await fetch('http://localhost:5000/predict', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(assessmentData)
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        return result.risk_level
+      } else {
+        console.error('API Error:', result.error)
+        return getFallbackRiskLevel(assessmentData.phq9_total, assessmentData.gad7_total)
+      }
+    } catch (error) {
+      console.error('Failed to call API:', error)
+      return getFallbackRiskLevel(assessmentData.phq9_total, assessmentData.gad7_total)
+    }
+  }
+  
   // Check if current step is complete
   const isStepComplete = () => {
     switch(currentStep) {
       case 1:
         return age && gender && yearOfStudy
       case 2:
-        return cgpa && studyHours && academicStress
+        return academicStanding && studyHours && academicStress
       case 3:
         return sleepDuration && physicalActivity
       case 4:
@@ -145,7 +204,6 @@ function Assessment() {
     }
   }
   
-  // Go to next step
   const handleNext = () => {
     if (isStepComplete()) {
       setCurrentStep(currentStep + 1)
@@ -156,111 +214,100 @@ function Assessment() {
     }
   }
   
-  // Go to previous step
   const handlePrevious = () => {
     setCurrentStep(currentStep - 1)
     window.scrollTo(0, 0)
   }
   
   // Submit assessment
- // Submit assessment
-const handleSubmit = async () => {
-  if (!isStepComplete()) {
-    setError('Please answer all questions before submitting')
-    setTimeout(() => setError(''), 3000)
-    return
-  }
-  
-  setLoading(true)
-  
-  try {
-    const userId = auth.currentUser?.uid
-    if (!userId) {
-      navigate('/login')
+  const handleSubmit = async () => {
+    if (!isStepComplete()) {
+      setError('Please answer all questions before submitting')
+      setTimeout(() => setError(''), 3000)
       return
     }
     
-    const phq9Score = calculatePhq9Score()
-    const gad7Score = calculateGad7Score()
+    setLoading(true)
     
-    const assessmentData = {
-      // Step 1: Demographics
-      age: parseInt(age),
-      gender: gender,
-      year_of_study: yearOfStudy,
-      
-      // Step 2: Academic Factors
-      cgpa: parseFloat(cgpa),
-      study_hours_per_day: parseInt(studyHours),
-      academic_stress: academicStress,
-      
-      // Step 3: Lifestyle Factors
-      sleep_hours_per_night: parseInt(sleepDuration),
-      physical_activity_days_per_week: parseInt(physicalActivity),
-      
-      // Step 4: Socio-environmental Factors
-      financial_stress: financialStress,
-      sense_of_belonging: senseOfBelonging,
-      social_support: socialSupport,
-      
-      // Step 5: PHQ-9 Scores
-      phq9_total: phq9Score,
-      phq9_q1: phq9Answers.q1,
-      phq9_q2: phq9Answers.q2,
-      phq9_q3: phq9Answers.q3,
-      phq9_q4: phq9Answers.q4,
-      phq9_q5: phq9Answers.q5,
-      phq9_q6: phq9Answers.q6,
-      phq9_q7: phq9Answers.q7,
-      phq9_q8: phq9Answers.q8,
-      phq9_q9: phq9Answers.q9,
-      
-      // Step 6: GAD-7 Scores
-      gad7_total: gad7Score,
-      gad7_q1: gad7Answers.q1,
-      gad7_q2: gad7Answers.q2,
-      gad7_q3: gad7Answers.q3,
-      gad7_q4: gad7Answers.q4,
-      gad7_q5: gad7Answers.q5,
-      gad7_q6: gad7Answers.q6,
-      gad7_q7: gad7Answers.q7,
-      
-      timestamp: new Date().toISOString()
-    }
-    
-    // Call ML API for prediction
     try {
-      const response = await fetch('http://localhost:5000/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(assessmentData)
-      })
-      const result = await response.json()
-      assessmentData.risk_level = result.success ? result.risk_level : getFallbackRiskLevel(phq9Score, gad7Score)
+      const userId = auth.currentUser?.uid
+      if (!userId) {
+        navigate('/login')
+        return
+      }
+      
+      const phq9Score = calculatePhq9Score()
+      const gad7Score = calculateGad7Score()
+      
+      // Prepare data for API
+      const apiData = {
+        age: parseInt(age),
+        gender: gender,
+        year_of_study: yearOfStudy,
+        academic_standing: academicStanding,
+        study_hours: parseFloat(studyHours),
+        academic_stress: academicStress,
+        sleep_hours: parseFloat(sleepDuration),
+        physical_activity: parseFloat(physicalActivity),
+        financial_stress: financialStress,
+        sense_of_belonging: senseOfBelonging,
+        social_support: socialSupport,
+        phq9_total: phq9Score,
+        gad7_total: gad7Score,
+        // Individual PHQ-9 answers
+        phq9_q1: phq9Answers.q1,
+        phq9_q2: phq9Answers.q2,
+        phq9_q3: phq9Answers.q3,
+        phq9_q4: phq9Answers.q4,
+        phq9_q5: phq9Answers.q5,
+        phq9_q6: phq9Answers.q6,
+        phq9_q7: phq9Answers.q7,
+        phq9_q8: phq9Answers.q8,
+        phq9_q9: phq9Answers.q9,
+        // Individual GAD-7 answers
+        gad7_q1: gad7Answers.q1,
+        gad7_q2: gad7Answers.q2,
+        gad7_q3: gad7Answers.q3,
+        gad7_q4: gad7Answers.q4,
+        gad7_q5: gad7Answers.q5,
+        gad7_q6: gad7Answers.q6,
+        gad7_q7: gad7Answers.q7
+      }
+      
+      // Get prediction from ML API
+      let riskLevel
+      if (apiAvailable) {
+        riskLevel = await getPredictionFromAPI(apiData)
+        console.log('🤖 ML Prediction:', riskLevel)
+      } else {
+        riskLevel = getFallbackRiskLevel(phq9Score, gad7Score)
+        console.log('⚠️ Using fallback prediction:', riskLevel)
+      }
+      
+      // Prepare assessment data for Firebase
+      const assessmentData = {
+        ...apiData,
+        risk_level: riskLevel,
+        timestamp: new Date().toISOString(),
+        createdAt: serverTimestamp()
+      }
+      
+      // Save to Firestore
+      const assessmentsRef = collection(db, 'users', userId, 'assessments')
+      await addDoc(assessmentsRef, assessmentData)
+      
+      console.log('✅ Assessment saved with prediction:', riskLevel)
+      
+      // Redirect to dashboard
+      navigate('/dashboard')
+      
     } catch (error) {
-      console.error('ML API error:', error)
-      assessmentData.risk_level = getFallbackRiskLevel(phq9Score, gad7Score)
+      console.error('Error saving assessment:', error)
+      setError('Failed to save assessment. Please try again.')
+      setTimeout(() => setError(''), 3000)
+    } finally {
+      setLoading(false)
     }
-    
-    // Save to Firestore: users/{userId}/assessments/{autoId}
-    const assessmentsRef = collection(db, 'users', userId, 'assessments')
-    await addDoc(assessmentsRef, assessmentData)
-    
-    navigate('/dashboard')
-    
-  } catch (error) {
-    console.error('Error saving assessment:', error)
-    setError('Failed to save assessment. Please try again.')
-    setTimeout(() => setError(''), 3000)
-  } finally {
-    setLoading(false)
-  }
-}
-  
-  const getFallbackRiskLevel = (phq9, gad7) => {
-    if (phq9 >= 10 || gad7 >= 10) return 'High Risk'
-    if (phq9 >= 5 || gad7 >= 5) return 'Moderate Risk'
-    return 'Low Risk'
   }
   
   const getStepTitle = () => {
@@ -294,6 +341,11 @@ const handleSubmit = async () => {
         <div className="assessment-header">
           <h1>Mental Health Assessment</h1>
           <p>Complete all sections for a comprehensive evaluation</p>
+          
+          {/* API Status Indicator */}
+          <div className={`api-status ${apiAvailable ? 'online' : 'offline'}`}>
+            {apiAvailable ? '🤖 ML Model Active' : '⚠️ Using Fallback Mode'}
+          </div>
           
           {/* Progress Bar */}
           <div className="progress-bar">
@@ -367,16 +419,13 @@ const handleSubmit = async () => {
           {currentStep === 2 && (
             <div className="step-questions">
               <div className="form-group">
-                <label>CGPA (0.00 - 5.00)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={cgpa}
-                  onChange={(e) => setCgpa(e.target.value)}
-                  placeholder="e.g., 3.50"
-                  min="0"
-                  max="5"
-                />
+                <label>Academic Standing</label>
+                <select value={academicStanding} onChange={(e) => setAcademicStanding(e.target.value)}>
+                  <option value="">Select Standing</option>
+                  {standingOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
               
               <div className="form-group">
@@ -415,6 +464,7 @@ const handleSubmit = async () => {
                   placeholder="Hours per night"
                   min="0"
                   max="16"
+                  step="0.5"
                 />
               </div>
               
@@ -538,7 +588,7 @@ const handleSubmit = async () => {
               </button>
             ) : (
               <button className="submit-btn" onClick={handleSubmit} disabled={loading}>
-                {loading ? "Submitting..." : "Submit Assessment"}
+                {loading ? "Analyzing with AI..." : "Submit Assessment"}
               </button>
             )}
           </div>

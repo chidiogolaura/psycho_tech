@@ -517,3 +517,22 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* API Status Indicator */
+.api-status {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 12px;
+}
+
+.api-status.online {
+  background: #D8F3DC;
+  color: #2D6A4F;
+}
+
+.api-status.offline {
+  background: #FEE2E2;
+  color: #C0392B;
+}

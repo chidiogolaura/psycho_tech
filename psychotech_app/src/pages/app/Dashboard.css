@@ -342,3 +342,65 @@
     font-size: 13px;
   }
 }
+/* ========================================
+   CHART SECTION STYLES
+   ======================================== */
+
+.chart-section {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 32px;
+  box-shadow: var(--shadow-md);
+}
+
+.chart-container {
+  height: 300px;
+  margin: 20px 0;
+}
+
+.chart-note {
+  font-size: 12px;
+  color: var(--text-gray);
+  text-align: center;
+  margin-top: 16px;
+}
+
+.trend-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trend-badge.improving {
+  background: #D8F3DC;
+  color: #2D6A4F;
+}
+
+.trend-badge.worsening {
+  background: #FEE2E2;
+  color: #C0392B;
+}
+
+.trend-badge.mixed {
+  background: #FEF3C7;
+  color: #E6A817;
+}
+
+.trend-badge.stable {
+  background: #E5E0F0;
+  color: var(--text-gray);
+}
+
+/* Responsive chart */
+@media (max-width: 768px) {
+  .chart-container {
+    height: 250px;
+  }
+  
+  .chart-section {
+    padding: 16px;
+  }
+}
