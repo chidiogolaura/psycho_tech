@@ -1,0 +1,344 @@
+/* ========================================
+   DASHBOARD STYLES
+   ======================================== */
+
+:root {
+  --lavender-primary: #7B6CB7;
+  --lavender-light: #9B8FD4;
+  --lavender-lighter: #F3F0FF;
+  --lavender-dark: #5D4E9E;
+  --lavender-bg: #FAF8FF;
+  --text-dark: #2D2B3F;
+  --text-gray: #6B6B7A;
+  --white: #FFFFFF;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --transition: all 0.3s ease;
+  --content-max-width: 800px;
+}
+
+/* ========================================
+   DASHBOARD CONTAINER
+   ======================================== */
+.dashboard-container {
+  max-width: var(--content-max-width);
+  width: 100%;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+/* ========================================
+   WELCOME SECTION
+   ======================================== */
+.welcome-section {
+  margin-bottom: 32px;
+}
+
+.welcome-section h1 {
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--text-dark);
+  margin-bottom: 8px;
+}
+
+.user-name {
+  color: var(--lavender-primary);
+  font-weight: 700;
+}
+
+.user-badge {
+  color: var(--text-gray);
+  font-size: 14px;
+  display: inline-block;
+  background: var(--lavender-lighter);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+/* ========================================
+   STATUS CARD
+   ======================================== */
+.status-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  margin-bottom: 32px;
+  box-shadow: var(--shadow-md);
+  transition: var(--transition);
+}
+
+.status-card h3 {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-gray);
+  margin-bottom: 24px;
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+.status-content {
+  text-align: center;
+}
+
+.risk-level {
+  font-size: 48px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.risk-emoji {
+  font-size: 52px;
+}
+
+.risk-text {
+  font-size: 42px;
+}
+
+.scores {
+  display: flex;
+  justify-content: center;
+  gap: 60px;
+  padding-top: 24px;
+  border-top: 1px solid #F0EDF8;
+}
+
+.score-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.score-label {
+  font-size: 15px;
+  color: var(--text-gray);
+  font-weight: 500;
+}
+
+.score-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--lavender-primary);
+}
+
+.score-range {
+  font-size: 14px;
+  color: var(--text-gray);
+}
+
+.score-divider {
+  width: 1px;
+  height: 50px;
+  background-color: #E5E0F0;
+}
+
+.no-assessment {
+  text-align: center;
+}
+
+.no-assessment p {
+  color: var(--text-gray);
+  margin-bottom: 20px;
+  font-size: 16px;
+}
+
+/* ========================================
+   TIPS SECTION
+   ======================================== */
+.tips-section {
+  background: linear-gradient(135deg, var(--lavender-lighter) 0%, var(--lavender-bg) 100%);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  margin-bottom: 32px;
+  border: 1px solid rgba(123, 108, 183, 0.2);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.section-header h3 {
+  font-size: 18px;
+  color: var(--text-dark);
+  font-weight: 600;
+}
+
+.tip-time-badge {
+  font-size: 12px;
+  color: var(--lavender-primary);
+  background: rgba(123, 108, 183, 0.15);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.tip-content {
+  margin-top: 16px;
+  text-align: center;
+  padding: 20px;
+}
+
+.current-tip {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--text-dark);
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.tip-time-note {
+  font-size: 12px;
+  color: var(--text-gray);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ========================================
+   BUTTONS
+   ======================================== */
+.primary-btn {
+  background: linear-gradient(135deg, var(--lavender-primary) 0%, var(--lavender-light) 100%);
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 40px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ========================================
+   LOADING SPINNER
+   ======================================== */
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 20px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--lavender-lighter);
+  border-top-color: var(--lavender-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-spinner p {
+  color: var(--text-gray);
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 20px 16px;
+  }
+  
+  .welcome-section h1 {
+    font-size: 24px;
+  }
+  
+  .risk-level {
+    font-size: 32px;
+  }
+  
+  .risk-text {
+    font-size: 28px;
+  }
+  
+  .risk-emoji {
+    font-size: 36px;
+  }
+  
+  .scores {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .score-divider {
+    display: none;
+  }
+  
+  .score-item {
+    justify-content: center;
+  }
+  
+  .score-value {
+    font-size: 28px;
+  }
+  
+  .current-tip {
+    font-size: 15px;
+  }
+  
+  .status-card {
+    padding: 24px;
+  }
+  
+  .tips-section {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .risk-emoji {
+    font-size: 28px;
+  }
+  
+  .risk-text {
+    font-size: 22px;
+  }
+  
+  .score-value {
+    font-size: 24px;
+  }
+  
+  .score-label {
+    font-size: 13px;
+  }
+  
+  .current-tip {
+    font-size: 14px;
+  }
+  
+  .status-card {
+    padding: 20px;
+  }
+  
+  .tips-section {
+    padding: 20px;
+  }
+  
+  .primary-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+}
