@@ -1,203 +1,240 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import joblib
-import numpy as np
 import pandas as pd
-import os
-
-# Initialize Flask app
-app = Flask(__name__)
-CORS(app)
-
-# Get the directory where this script is located
-script_dir = os.path.dirname(os.path.abspath(__file__))
-models_path = os.path.join(script_dir, 'models')
+import numpy as np
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import xgboost as xgb
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import StackingClassifier
+import joblib
+import warnings
+warnings.filterwarnings('ignore')
 
 print("="*60)
-print("🚀 STARTING MENTAL HEALTH PREDICTION API")
+print("TRAINING MENTAL HEALTH PREDICTION MODEL")
 print("="*60)
 
 # ========================================
-# LOAD YOUR TRAINED MODEL
+# LOAD COMBINED DATASET
 # ========================================
 
-model = None
-scaler = None
-feature_columns = None
-
-try:
-    # Load your trained XGBoost model
-    model = joblib.load(os.path.join(models_path, 'model.pkl'))
-    print(f"✅ Loaded XGBoost model (99% accuracy)")
-    
-    # Load scaler
-    scaler = joblib.load(os.path.join(models_path, 'scaler.pkl'))
-    print(f"✅ Loaded scaler")
-    
-    # Load feature columns
-    feature_columns = joblib.load(os.path.join(models_path, 'feature_columns.pkl'))
-    print(f"✅ Model expects {len(feature_columns)} features")
-    
-except Exception as e:
-    print(f"❌ Error loading model: {e}")
-    model = None
-    scaler = None
-    feature_columns = None
+df = pd.read_csv('data/combined_dataset.csv')
+print(f"✅ Loaded {len(df)} total samples (47 real + 500 synthetic)")
 
 # ========================================
-# HELPER FUNCTION: Prepare Input Data
+# PREPARE FEATURES
 # ========================================
 
-def prepare_features(data):
-    """Convert incoming JSON to model features"""
-    # Create dataframe with all required features
-    input_dict = {}
-    
-    # Set default values for all features
-    for col in feature_columns:
-        input_dict[col] = 0
-    
-    # Map incoming data to features
-    # Numeric fields
-    if 'age' in data:
-        input_dict['age'] = float(data['age'])
-    if 'study_hours' in data:
-        input_dict['study_hours'] = float(data['study_hours'])
-    if 'sleep_hours' in data:
-        input_dict['sleep_hours'] = float(data['sleep_hours'])
-    if 'physical_activity' in data:
-        input_dict['physical_activity'] = float(data['physical_activity'])
-    if 'phq9_total' in data:
-        input_dict['phq9_total'] = float(data['phq9_total'])
-    if 'gad7_total' in data:
-        input_dict['gad7_total'] = float(data['gad7_total'])
-    
-    # Map PHQ-9 individual answers
-    for i in range(1, 10):
-        key = f'phq9_q{i}'
-        if key in data:
-            input_dict[key] = float(data[key])
-    
-    # Map GAD-7 individual answers
-    for i in range(1, 8):
-        key = f'gad7_q{i}'
-        if key in data:
-            input_dict[key] = float(data[key])
-    
-    # Categorical fields (encode as numbers)
-    gender_map = {'Female': 0, 'Male': 1, 'Prefer not to say': 2}
-    if 'gender' in data:
-        input_dict['gender'] = gender_map.get(data['gender'], 0)
-    
-    year_map = {'100L': 0, '200L': 1, '300L': 2, '400L': 3, '500L': 4, '600L': 5}
-    if 'year_of_study' in data:
-        input_dict['year_of_study'] = year_map.get(data['year_of_study'], 3)
-    
-    standing_map = {'Excellent': 1, 'Good': 2, 'Average': 0, 'Not Applicable': 3}
-    if 'academic_standing' in data:
-        input_dict['academic_standing'] = standing_map.get(data['academic_standing'], 1)
-    
-    stress_map = {'Low': 1, 'Moderate': 2, 'High': 0}
-    if 'academic_stress' in data:
-        input_dict['academic_stress'] = stress_map.get(data['academic_stress'], 2)
-    if 'financial_stress' in data:
-        input_dict['financial_stress'] = stress_map.get(data['financial_stress'], 2)
-    
-    belonging_map = {'High': 0, 'Low': 1, 'Moderate': 2}
-    if 'sense_of_belonging' in data:
-        input_dict['sense_of_belonging'] = belonging_map.get(data['sense_of_belonging'], 2)
-    
-    if 'social_support' in data:
-        input_dict['social_support'] = belonging_map.get(data['social_support'], 2)
-    
-    # Create dataframe
-    input_df = pd.DataFrame([input_dict])
-    input_df = input_df[feature_columns]
-    
-    return input_df
+print("\n" + "="*60)
+print("Preparing features for training")
+print("="*60)
+
+# Define feature columns (exclude target and identifier columns)
+exclude_cols = ['risk_level', 'Timestamp']
+feature_cols = [col for col in df.columns if col not in exclude_cols]
+
+print(f"📊 Using {len(feature_cols)} features")
+
+# Separate features and target
+X = df[feature_cols].copy()
+y = df['risk_level'].copy()
+
+# Encode categorical variables
+categorical_cols = X.select_dtypes(include=['object']).columns.tolist()
+print(f"📊 Categorical columns to encode: {categorical_cols}")
+
+for col in categorical_cols:
+    le = LabelEncoder()
+    X[col] = le.fit_transform(X[col].astype(str))
+    print(f"   Encoded {col}")
+
+# Encode target
+target_encoder = LabelEncoder()
+y_encoded = target_encoder.fit_transform(y)
+print(f"\n🎯 Target encoding:")
+for i, label in enumerate(target_encoder.classes_):
+    print(f"   {label} → {i}")
 
 # ========================================
-# API ENDPOINTS
+# SPLIT DATA
 # ========================================
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    return jsonify({
-        'status': 'healthy',
-        'model_loaded': model is not None,
-        'model_accuracy': '99.09%',
-        'message': 'Mental Health Prediction API is running with trained XGBoost model'
-    })
+print("\n" + "="*60)
+print("Splitting data (80% train, 20% test)")
+print("="*60)
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    try:
-        if model is None or scaler is None or feature_columns is None:
-            return jsonify({
-                'success': False,
-                'error': 'Model not loaded'
-            }), 500
-        
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'success': False, 'error': 'No data provided'}), 400
-        
-        print(f"\n📊 Prediction request:")
-        print(f"   Age: {data.get('age', 'N/A')}")
-        print(f"   PHQ-9: {data.get('phq9_total', 'N/A')}")
-        print(f"   GAD-7: {data.get('gad7_total', 'N/A')}")
-        
-        # Prepare features
-        input_df = prepare_features(data)
-        
-        # Scale features
-        input_scaled = scaler.transform(input_df)
-        
-        # Make prediction
-        prediction = model.predict(input_scaled)[0]
-        probabilities = model.predict_proba(input_scaled)[0]
-        
-        # Map prediction to risk level
-        risk_map = {0: 'High Risk', 1: 'Low Risk', 2: 'Moderate Risk'}
-        risk_level = risk_map.get(prediction, 'Unknown')
-        
-        print(f"   ✅ Prediction: {risk_level}")
-        
-        return jsonify({
-            'success': True,
-            'risk_level': risk_level,
-            'risk_code': int(prediction),
-            'phq9_total': data.get('phq9_total'),
-            'gad7_total': data.get('gad7_total'),
-            'probabilities': {
-                'High Risk': float(probabilities[0]),
-                'Low Risk': float(probabilities[1]),
-                'Moderate Risk': float(probabilities[2])
-            }
-        })
-        
-    except Exception as e:
-        print(f"❌ Prediction error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
+)
 
-@app.route('/model-info', methods=['GET'])
-def model_info():
-    return jsonify({
-        'model_type': 'XGBoost',
-        'accuracy': '99.09%',
-        'features_expected': len(feature_columns) if feature_columns else 0,
-        'status': 'ready'
-    })
+print(f"📊 Train size: {len(X_train)}")
+print(f"📊 Test size: {len(X_test)}")
 
-if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("API ENDPOINTS:")
-    print("  GET  /health      - Check API status")
-    print("  POST /predict     - Get risk prediction")
-    print("  GET  /model-info  - Get model information")
-    print("="*60)
-    print("\n🚀 API running at: http://localhost:5000")
-    print("="*60)
-    
-    app.run(host='0.0.0.0', port=5000, debug=True)
+# ========================================
+# SCALE FEATURES
+# ========================================
+
+print("\n" + "="*60)
+print("Scaling features")
+print("="*60)
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Save scaler
+joblib.dump(scaler, 'models/scaler.pkl')
+print(f"✅ Scaler saved to 'models/scaler.pkl'")
+
+# ========================================
+# TRAIN RANDOM FOREST
+# ========================================
+
+print("\n" + "="*60)
+print("Training Random Forest Classifier...")
+print("="*60)
+
+rf_model = RandomForestClassifier(
+    n_estimators=100,
+    max_depth=10,
+    random_state=42,
+    class_weight='balanced'
+)
+rf_model.fit(X_train_scaled, y_train)
+
+rf_train_acc = accuracy_score(y_train, rf_model.predict(X_train_scaled))
+rf_test_acc = accuracy_score(y_test, rf_model.predict(X_test_scaled))
+
+print(f"✅ Random Forest - Train Accuracy: {rf_train_acc:.4f}")
+print(f"✅ Random Forest - Test Accuracy: {rf_test_acc:.4f}")
+
+# ========================================
+# TRAIN XGBOOST
+# ========================================
+
+print("\n" + "="*60)
+print("Training XGBoost Classifier...")
+print("="*60)
+
+xgb_model = xgb.XGBClassifier(
+    n_estimators=100,
+    max_depth=6,
+    learning_rate=0.1,
+    random_state=42,
+    use_label_encoder=False,
+    eval_metric='mlogloss'
+)
+xgb_model.fit(X_train_scaled, y_train)
+
+xgb_train_acc = accuracy_score(y_train, xgb_model.predict(X_train_scaled))
+xgb_test_acc = accuracy_score(y_test, xgb_model.predict(X_test_scaled))
+
+print(f"✅ XGBoost - Train Accuracy: {xgb_train_acc:.4f}")
+print(f"✅ XGBoost - Test Accuracy: {xgb_test_acc:.4f}")
+
+# ========================================
+# CREATE STACKING ENSEMBLE
+# ========================================
+
+print("\n" + "="*60)
+print("Creating Stacking Ensemble (Random Forest + XGBoost)")
+print("="*60)
+
+stacking_model = StackingClassifier(
+    estimators=[
+        ('rf', rf_model),
+        ('xgb', xgb_model)
+    ],
+    final_estimator=LogisticRegression(),
+    cv=5
+)
+stacking_model.fit(X_train_scaled, y_train)
+
+stack_train_acc = accuracy_score(y_train, stacking_model.predict(X_train_scaled))
+stack_test_acc = accuracy_score(y_test, stacking_model.predict(X_test_scaled))
+
+print(f"✅ Stacking Ensemble - Train Accuracy: {stack_train_acc:.4f}")
+print(f"✅ Stacking Ensemble - Test Accuracy: {stack_test_acc:.4f}")
+
+# ========================================
+# SELECT BEST MODEL
+# ========================================
+
+print("\n" + "="*60)
+print("Model Comparison")
+print("="*60)
+
+accuracies = {
+    'Random Forest': rf_test_acc,
+    'XGBoost': xgb_test_acc,
+    'Stacking Ensemble': stack_test_acc
+}
+
+for name, acc in accuracies.items():
+    print(f"   {name}: {acc:.4f}")
+
+best_model_name = max(accuracies, key=accuracies.get)
+print(f"\n🏆 BEST MODEL: {best_model_name} with accuracy {accuracies[best_model_name]:.4f}")
+
+# Save the best model
+if best_model_name == 'Random Forest':
+    final_model = rf_model
+elif best_model_name == 'XGBoost':
+    final_model = xgb_model
+else:
+    final_model = stacking_model
+
+joblib.dump(final_model, 'models/model.pkl')
+print(f"✅ Final model saved to 'models/model.pkl'")
+
+# ========================================
+# DETAILED EVALUATION
+# ========================================
+
+print("\n" + "="*60)
+print("Detailed Classification Report")
+print("="*60)
+
+y_pred = final_model.predict(X_test_scaled)
+
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred, target_names=target_encoder.classes_))
+
+print("\nConfusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+
+# ========================================
+# CROSS-VALIDATION
+# ========================================
+
+print("\n" + "="*60)
+print("5-Fold Cross-Validation")
+print("="*60)
+
+cv_scores = cross_val_score(final_model, X_train_scaled, y_train, cv=5)
+print(f"Cross-validation scores: {cv_scores}")
+print(f"Mean CV score: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
+
+# ========================================
+# SAVE FEATURE COLUMNS FOR API
+# ========================================
+
+joblib.dump(feature_cols, 'models/feature_columns.pkl')
+print(f"\n✅ Feature columns saved to 'models/feature_columns.pkl'")
+
+# ========================================
+# FINAL SUMMARY
+# ========================================
+
+print("\n" + "="*60)
+
+print("TRAINING COMPLETE!")
+print("="*60)
+print(f"\n📊 Final model: {best_model_name}")
+print(f"📊 Test accuracy: {accuracies[best_model_name]:.4f}")
+print(f"📊 Model saved to: models/model.pkl")
+print(f"📊 Scaler saved to: models/scaler.pkl")
+print(f"📊 Feature columns saved to: models/feature_columns.pkl")
+print("\n✅ Ready to deploy to Flask API!")
+print("="*60)
